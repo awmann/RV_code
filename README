@@ -1,0 +1,29 @@
+Contains RV correction code.
+
+This is meant to help compute RV offsets for metallicity calculation.
+
+All code assumes the spectra are already in vacuum.
+
+A simple example:
+download RV code here and the metal code in https://github.com/awmann/metal as well as the fits files.
+M1.5V_HD36395.fits is a template from the IRTF spectral library (here for convenience)
+Sample.fits is a sample M dwarf. Both spectra are already in vacuum.
+
+Let's RV correct the M dwarf to match the template:
+template = mrdfits('M1.5V_HD36395.fits',0)
+twave = template[*,0]
+tflux = template[*,1]
+temp = mrdfits('sample.fits',0)
+swave = temp[*,0]
+sflux = temp[*,1]
+serr = temp[*,2]
+compute_xcor_rv,swave,sflux,0,rv,wavelim=[2.0,2.4],norm_reg=[2.0,2.4],maxshift=20,twave=twave,tflux=tflux,showplot=1
+print,rv ;; should get about -8 km/s, but you can get slightly different answers by changing wavelim around, which gives you some idea of the errors.
+c = 299792.458D
+swave/=(rv/c+1.) ;; the wavelengths are now in rest frame
+am_getmetal,swave,sflux,serr,1.8,'K',feh,feh_err,mh,mh_err,/doerr
+print,feh,feh_Err,mh,mh_err
+
+this should output something like:
+-0.16976332     0.034212921     -0.18648235     0.031594626
+which is reasonable for this star.
