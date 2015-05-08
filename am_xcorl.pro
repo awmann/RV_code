@@ -53,10 +53,10 @@
 Pro  am_xcorl,star, $           ; spectrum of the star, must have even (wavelength) separations in log-space (so the shift is constant in RV space)
               template, $       ; template spectrum, must be a pixel-for-pixel match (wavelength) with star
               maxshift, $       ; maximum pixel shift allowed
-              shft, $           ;
-              xpout, $            ;
+              shft, $           ; the shift, in pixels
+              xpout, $          ;
               chiout, $         ;
-              plot=pl          ;
+              plot=pl           ;
 
   if n_params() lt 3 then begin   
      print,'am_xcorl,star,template,maximum shift'
@@ -103,7 +103,8 @@ Pro  am_xcorl,star, $           ; spectrum of the star, must have even (waveleng
   shft = xp(mm(0))
 
   if abs(shft) ge maxshift then begin
-     print,'fit did not converge...'
+     print,'fit did not converge, setting shift to absurdly high number.'
+     shift = 1d10
      return 
   endif
 

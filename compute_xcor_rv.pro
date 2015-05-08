@@ -8,7 +8,8 @@ PRO compute_xcor_rv,wave, $              ; vavelength array
                     tflux=tflux, $       ; template flux
                     maxshift=maxshift, $ ; maximum allowed shift (IN PIXELS)
                     startshift=startshift, $ ; initial shift, sometimes we use this for applying barycentric and other corrections to the data before doing the RV, but I suggest letting it sit at 0 (the default)
-                    showplot=showplot        ; plot the chi^2 distribution as a function of the offset above the spectrum and shifted spectrum
+                    showplot=showplot, $     ; plot the chi^2 distribution as a function of the offset above the spectrum and shifted spectrum
+                    redo=redo ; set to 1 to turn off the redo module
 ;Eric J. Hilton
 ;modified 20120307
 ;enable user to manually adjust fit a bit, so see if it locks on to a
@@ -55,56 +56,58 @@ PRO compute_xcor_rv,wave, $              ; vavelength array
   tflux = tflux/ median(tflux[where(twave gt norm_reg[0] and twave lt norm_reg[1])])
   flux = flux/ median(flux[where(wave gt norm_reg[0] and wave lt norm_reg[1])])
 
-  ;;Find the velocity per pixel
   ind=where(wave gt wavelim[0] and wave lt wavelim[1])
   ind2=where(twave gt wavelim[0] and twave lt wavelim[1])
 
-  testmax=max(wave[ind],mind)
-  testmin=min(wave[ind])
-
-  testmax2=max(twave[ind2],mind2)
-  testmin2=min(twave[ind2])
-
-  velpix = 299792.458D*(wave[ind[mind]] - wave[ind[mind]-1])/wave[ind[mind]-1]  
-  velpixt=299792.458D*(twave[ind2[mind2]]-twave[ind2[mind2]-1])/twave[ind2[mind2]-1]
-
-  minvel=min([velpix,velpixt])
-
-  ;;create a new wavelength array in log-space
-  ;;so the pixel shift is constant in velocity space
-  ca=alog10(double(min(wave[ind])))
-  cb=alog10(double(min(wave[ind]))+minvel/2.99792458d5*min(wave[ind]))-ca
-
-  newwave=10^(ca+cb*dindgen(100000))
-
-  newwave = newwave[where(newwave gt wavelim[0] and newwave lt wavelim[1])]
+  ; CREATE WAVELENGTH ARRAY THAT IS EVENLY SPACED IN LOG SPACE
+  n_bins = double((size(wave[ind]))[1])
+  ln_wave = double(alog(wave[ind]))
+  ln_range = double(max(ln_wave)-min(ln_wave))
+  ln_grid = findgen(n_bins)*ln_range/(n_bins-1) + min(ln_wave)
+  newwave = exp(1)^ln_grid
 
   tnewflux=interpol(tflux,twave,newwave)
   newflux=interpol(flux,wave,newwave)
+
+  ;;Find the velocity per pixel
+  ind_med = where(newwave eq median(newwave))
+  velpix = 299792.458D*(newwave[ind_med] - newwave[ind_med-1])/newwave[ind_med-1]  
+  
+  minvel=min([velpix,velpix])
+
+  ;;create a new wavelength array in log-space
+  ;;so the pixel shift is constant in velocity space
+  ;;ca=alog10(double(min(wave[ind])))
+  ;;cb=alog10(double(min(wave[ind]))+minvel/2.99792458d5*min(wave[ind]))-ca
+  ;;newwave=10^(ca+cb*dindgen(100000))
+  ;;newwave = newwave[where(newwave gt wavelim[0] and newwave lt wavelim[1])]
+
 
   ;;do the actual cross correlation  
   if showplot eq 0 then begin
      am_xcorl, newflux,tnewflux,maxshift,sft,xp,chi
      rv= sft*minvel
-     if abs(rv) gt 1000 then begin
-        nwavelim = [5300, 7000]
-        nind=where(wave gt nwavelim[0] and wave lt nwavelim[1])
-        nind2=where(twave gt nwavelim[0] and twave lt nwavelim[1])
-        am_xcorl, newflux,tnewflux,maxshift,sft,chi,minchi,xpout
-        rv= sft*minvel
+     if n_elements(redo) eq 0 then begin
         if abs(rv) gt 1000 then begin
-           nwavelim = [7700, 9000]
+           nwavelim = [5300, 7000]
            nind=where(wave gt nwavelim[0] and wave lt nwavelim[1])
            nind2=where(twave gt nwavelim[0] and twave lt nwavelim[1])
-           am_xcorl, newflux,tnewflux,maxshift,sft
+           am_xcorl, newflux,tnewflux,maxshift,sft,xp,chi
            rv= sft*minvel
+           if abs(rv) gt 1000 then begin
+              nwavelim = [7700, 9000]
+              nind=where(wave gt nwavelim[0] and wave lt nwavelim[1])
+              nind2=where(twave gt nwavelim[0] and twave lt nwavelim[1])
+              am_xcorl, newflux,tnewflux,maxshift,sft,xp,chi
+              rv= sft*minvel
+           endif
         endif
         if abs(rv) gt 1000 then rv = 0.0 ;; do no harm algorithm
      endif
   endif else begin 
      !p.multi=[0,1,2]
      loadct,39,/silent
-     am_xcorl, newflux,tnewflux,maxshift,sft,/pl 
+     am_xcorl, newflux,tnewflux,maxshift,sft,xp,chi,/pl
      rv= sft*minvel
      plot, newwave, tnewflux,xrange=norm_reg,/xsty
      oplot, newwave, newflux,color=cgcolor('red')
